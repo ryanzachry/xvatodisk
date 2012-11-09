@@ -4,14 +4,45 @@ use warnings;
 use Fcntl qw/SEEK_SET/;
 use Storable qw/store retrieve/;
 use File::Temp;
+use Getopt::Long;
+use Pod::Usage;
 
 use constant CHUNK_SIZE  => 1048576;
 use constant SECTOR_SIZE => 512;
 
-my $xva_file = $ARGV[0];
+=head1 NAME
+
+xvatodisk - Makes disks in a XVA file available for mounting read-only.
+
+=head1 SYNOPSIS
+
+xvatodisk -x </path/to/exported.xva> [-m </path/to/saved.map>]
+
+=over
+
+=item arguments:
+
+  -h, --help     display this help
+  -x, --xva      path to xva to use
+  -m, --map      path to map of xva to use or save
+
+=back
+
+=head1 DESCRIPTION
+
+=cut
+
+my ($xva_file, $xva_map_file, $help);
+my $opt = GetOptions(
+	"xva|x=s" => \$xva_file,
+	"map|m:s" => \$xva_map_file,
+	"help|h"  => \$help
+);
+
+pod2usage(1) if (!$opt || $help || !defined($xva_file) || !-e $xva_file);
 
 # Mapping the xva can take a while on large files, save the map.
-my $xva_map_file = $xva_file . "-map";
+$xva_map_file ||= $xva_file . "-map";
 my $xva = (-e $xva_map_file) ? retrieve($xva_map_file) : make_xva_map($xva_file, $xva_map_file);
 
 # There can be multiple disks in an xva.
@@ -48,7 +79,6 @@ $SIG{INT} = sub {
 };
 
 sleep 1 while 1;
-
 
 
 #-------------------------------------------------------------------------------
@@ -100,8 +130,8 @@ sub make_xva_map {
    	my %xva;
    	my $xva_size = (stat $xva_file)[7];
    	my $offset   = 0;
-   	while (my $hdr = readTarHeader($fh, $offset)) {
-   		printf "indexing xva: %0.2f\r", ($offset * 100) / $xva_size;
+   	while (my $hdr = read_tar_header($fh, $offset)) {
+   		printf("  - indexing xva: %0.2f\r", ($offset * 100) / $xva_size);
    		$offset += 512;
 
    		# Ignore the empty chunks since this will be read only.
@@ -113,8 +143,8 @@ sub make_xva_map {
    	}
 
     close($fh);
-    print "- indexing xva complete\n";
-    print "saving xva map\n";
+    print "  indexing xva complete\n";
+    print "  map saved to: $xva_map_file\n";
 	store(\%xva, $xva_map_file);
 
     return \%xva;
@@ -126,7 +156,7 @@ sub make_xva_map {
 # position. Returns undef at the end of the tar. This will advance the file 
 # position by 512 bytes.
 #-------------------------------------------------------------------------------
-sub readTarHeader {
+sub read_tar_header {
     my ($fh, $offset) = @_;
 
     sysseek($fh, $offset, SEEK_SET) if (defined($offset));
