@@ -2,8 +2,10 @@ XVA to Disk
 =========
 
 This will allow you to mount (read only) the disks in an XVA, in place. It does 
-so by mapping out the XVA and using device-mapper to make the device.
+so by mapping out the XVA and using device-mapper to make the device. 
 
+You need dmsetup and partprobe installed, on Debian: 
+    apt-get install dmsetup parted && modprobe dm_mod
 
 XVA Format
 ----------
